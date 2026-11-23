@@ -106,7 +106,9 @@
   "Dispatches the 'run' function with parsed CLI arguments"
   [& args]
 
-  (timbre/set-min-level! :info) ; set log up
+  ;; LOGGING SETUP
+  ;; =============
+  (timbre/set-min-level! :info) ; initial log level = info
   (timbre/merge-config!
    {
     :timestamp-opts ; Simplified local timestamps

@@ -14,11 +14,17 @@
   ([cmd] (run-command cmd {}))
   ([cmd options]
    (log/debug (str "CMD: Running command '" cmd "' with options: ") options)
-   (apply p/shell
-          (merge {:out :string :err :string} options)
-          (if (:raw-args options)
-            cmd ;; pass a vector
-            (split-to-list cmd)))))
+   (try
+     (apply p/shell
+            (merge {:out :string :err :string} options)
+            (if (:raw-args options)
+              cmd ;; pass a vector
+              (split-to-list cmd)))
+
+     ;; Mention problem and re-throw error. Can't predict cleanup.
+     (catch Exception e
+       (log/error (str "Failed to run a command ('" cmd "')") options)
+       (throw e)))))
 
 ;; ================================================================================
 ;; Testing

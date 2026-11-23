@@ -116,6 +116,10 @@ def main():
       (gitops/switch-branch target_branch dir)
       (log/info (str "Switched to branch '" target_branch "'"))
 
+      ;; Reset the build-branch to ensure no changes have slipped in during editing
+      (gitops/reset dir)
+      (log/info target_branch " branch reset and ready to copy changes from " source_branch)
+
       (when-not offline
         (when-not (gitops/upstream-branch-exists dir)
           (throw (ex-info "Upstream branch does not exist." target-data)))
@@ -196,7 +200,7 @@ def main():
       (log/info log-prefix "Finished building target."))
 
     (catch Exception e
-      (log/info "Error encountered while handling branch " id)
+      (log/error "Error encountered while handling branch " id)
       (gitops/reset dir)
       (throw e))))
 
@@ -261,7 +265,7 @@ def main():
       (log/info (str "Completed build from '" current-branch "' branch.")))
 
     (catch Exception e
-      (log/info "Error encountered while handling branching builds.")
+      (log/error "Error encountered while handling branching builds.")
       (gitops/switch-branch (:initial-branch config) dir)
       (throw e))))
 
