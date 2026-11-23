@@ -4,6 +4,7 @@
    [cheshire.core :as json]
    [selmer.parser :as selmer]
    [selmer.util :refer [without-escaping]]
+   [clojure.tools.logging :as log]
    [clj-yaml.core :as yaml]))
 
 (defn replace-strings
@@ -23,7 +24,7 @@
 (defn replace-strings-in-file
   "Replaces every instance of each original-replacement pair in the target file."
   [file-path replacements]
-  (println (str "Making replacements in " file-path))
+  (log/debug (str "Making replacements in " file-path))
   (spit file-path
         (-> (slurp file-path) (replace-strings replacements))))
 

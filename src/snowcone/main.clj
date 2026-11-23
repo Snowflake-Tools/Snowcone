@@ -4,6 +4,8 @@
    [snowcone.build-folder :refer [build-folder]]
    [snowcone.build-branches :refer [build-branches]]
    [babashka.cli :as cli]
+   [taoensso.timbre :as timbre]
+   [clojure.tools.logging :as log]
    [snowcone.config :refer [get-config-data]]
    [snowcone.gitops :as gitops]
    [clojure.pprint :refer [pprint]]
@@ -61,7 +63,7 @@
   
   ;; Show configuration if asked for
   (when (or (:show-config config) (:verbose config))
-    (println "Building project with configuration data:")
+    (log/info "Building project with configuration data:")
     (pprint config))
   
   ;; Launch build based on build type
@@ -74,16 +76,19 @@
 (defn run
   "Runs the build process based on the provided configuration file"
   [input-opts]
-  (println "\n\nSNOWCONE: Snowflake Build Tool 0.1.0")
+  (log/info "\n\nSNOWCONE: Snowflake Build Tool 0.1.0")
   (let [opts (clean-opts input-opts)]
     
     (when (:verbose opts)
-      (println "Command line arguments passed:")
+      (log/info "Command line arguments passed:")
       (pprint opts))
     
     ;; Preflight Checks
     (checks/check-if-git-repository-root (:dir opts))
     (checks/check-if-config-file-is-parsable (:dir opts))
+
+    (when (:verbose opts)
+      (timbre/set-min-level! :debug))
     
     ;; Combine config data with cli-opts
     (let [config-data (get-config-data (:dir opts) (:config-name opts))]
@@ -95,11 +100,27 @@
            (assoc :current-commit-short (gitops/current-short-commit (:dir opts)))
            (checks/validate-config))))
     
-    (println "Success. Please validate output.")))
+    (log/info "Success. Please validate output.")))
 
 (defn -main
   "Dispatches the 'run' function with parsed CLI arguments"
   [& args]
+
+  (timbre/set-min-level! :info) ; set log up
+  (timbre/merge-config!
+   {
+    :timestamp-opts ; Simplified local timestamps
+    {:pattern  "yyyy-MM-dd HH:mm:ss"
+     :timezone (java.util.TimeZone/getDefault)}
+
+    :output-fn ; Format
+    (fn [{:keys [timestamp_ level ?ns-str msg_]}]
+      (format "%s [%s] (%s) - %s"
+              (force timestamp_)
+              (.toUpperCase (name level))
+              (or ?ns-str "unknown")
+              (force msg_)))})
+
   (cli/dispatch
    {:exec-fn run :spec arg-spec}
    args

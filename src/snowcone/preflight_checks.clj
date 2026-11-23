@@ -2,6 +2,7 @@
   (:require
    [babashka.process :as p]
    [snowcone.shell :refer [run-command]]
+   [clojure.tools.logging :as log]
    [babashka.fs :as fs]
    [clj-yaml.core :as yaml]
    [clojure.string :as str]))
@@ -40,7 +41,7 @@
     (when-not (= 0 (:exit result))
       (throw (ex-info "Git worktree not valid." {}))))
 
-  (println (str "Operating at path '" path "' which is a valid repository")))
+  (log/info (str "Operating at path '" path "' which is a valid repository")))
 
 (defn check-if-config-file-is-parsable
   "Runs a simple check to see if the config.yml is parseable and has a project.name value."
@@ -60,7 +61,7 @@
     (when-not (string? project-name)
       (throw (ex-info "Config file 'config.yml' requires project.name value." {})))
 
-    (println (str "Config file 'config.yml' present, project name: '" project-name "'"))))
+    (log/info (str "Config file 'config.yml' present, project name: '" project-name "'"))))
 
 ;; ================================================================================
 ;; Testing

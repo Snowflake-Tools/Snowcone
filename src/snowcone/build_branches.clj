@@ -1,6 +1,7 @@
 (ns snowcone.build-branches
   (:require
    [snowcone.gitops :as gitops]
+   [clojure.tools.logging :as log]
    [snowcone.dates :refer [datestamp]]
    [snowcone.fileops :as fileops]
    [babashka.fs :as fs]
@@ -52,11 +53,11 @@ def main():
    {:keys [dir verbose offline] :as config}]
   (let [file-path (clean-notebook-path path notebook-file)
         full-file-path (clean-full-notebook-path dir path notebook-file)]
-    (println (str "Handling " file-path))
+    (log/info (str "Handling " file-path))
 
     ;; Restore file to correct location
     (gitops/restore-file file-path source_branch dir offline)
-    (println (str "Restored notebook to path " file-path))
+    (log/info (str "Restored notebook to path " file-path))
     ;; If there is an exception this will need to be rolled back
 
     ;; Rewrite notebook with any replacements
@@ -64,7 +65,7 @@ def main():
 
     ;; Add changes
     (gitops/add-file file-path dir)
-    (println (str "Finished handling " file-path))))
+    (log/info (str "Finished handling " file-path))))
 
 (defn copy-and-transform-one-notebook-set
   "Given a folder of notebooks, copy and transform all notebooks to the branch."
@@ -76,12 +77,12 @@ def main():
     ;; If not already, switch to the correct target branch.
     (when-not (= current-branch target_branch)
       (gitops/switch-branch target_branch dir)
-      (println (str "Switched to branch '" target_branch "'")))
+      (log/info (str "Switched to branch '" target_branch "'")))
 
-    (println (str "Handling " (count notebooks) " notebooks for " (name id) " in branch '" target_branch "'"))
+    (log/info (str "Handling " (count notebooks) " notebooks for " (name id) " in branch '" target_branch "'"))
 
     (when verbose
-      (println (str (name id) " notebook data:"))
+      (log/info (str (name id) " notebook data:"))
       (pprint notebook-data))
 
     (doseq [notebook-file notebooks]
@@ -89,7 +90,7 @@ def main():
        notebook-file notebook-data
        target-data config))
 
-    (println "Notebook set handled.")))
+    (log/info "Notebook set handled.")))
 
 (defn build-one-branch
   "Given a target branch, assemble all notebooks for that branch."
@@ -101,25 +102,25 @@ def main():
           log-prefix (s/upper-case (str env-target-slug "-BUILD: "))]
 
       (when verbose
-        (println (str "\nDEBUG: '" (s/upper-case env-target-slug) "' Target Data:"))
+        (log/info (str "\nDEBUG: '" (s/upper-case env-target-slug) "' Target Data:"))
         (prn target-data))
 
-      (println (str "\n" (s/upper-case env-target-slug) ": Building target"))
+      (log/info (str "\n" (s/upper-case env-target-slug) ": Building target"))
 
       ;; Ensure the latest commits are fetched for the source
       (when-not offline
         (gitops/fetch-branch-from-origin source_branch dir)
-        (println (str "Fetched source (" source_branch ") branch")))
+        (log/info (str "Fetched source (" source_branch ") branch")))
 
       ;; Switch to the source branch (should not change the branch)
       (gitops/switch-branch target_branch dir)
-      (println (str "Switched to branch '" target_branch "'"))
+      (log/info (str "Switched to branch '" target_branch "'"))
 
       (when-not offline
         (when-not (gitops/upstream-branch-exists dir)
           (throw (ex-info "Upstream branch does not exist." target-data)))
         (gitops/fetch-branch-from-origin target_branch dir)
-        (println (str "Fetched target ("  target_branch ") branch")))
+        (log/info (str "Fetched target ("  target_branch ") branch")))
 
       ;; Untrack all files for a clean start in the target branch
       (when-not (empty? (gitops/list-tracked-files target_branch dir))
@@ -128,7 +129,7 @@ def main():
       ;; Create .tmp-build-<slug> directory to copy files to
       ;; -p -> make if already exists
       ;; (run-command (str "mkdir -p " tmp-dir) {:dir dir})
-      ;; (println "Working in directory" tmp-dir)
+      ;; (log/info "Working in directory" tmp-dir)
       (doseq [[id notebook] notebooks]
         (copy-and-transform-one-notebook-set
          (assoc notebook :id id) target-data config))
@@ -179,11 +180,11 @@ def main():
           (gitops/add-file config-py-file-path dir))
 
         ;; Commit the changes
-        (println (str "Building with commit message: " commit-msg))
+        (log/info (str "Building with commit message: " commit-msg))
         (gitops/commit commit-msg dir))
 
       (when (and offline push)
-        (println "OFFLINE: Skipping push."))
+        (log/info "OFFLINE: Skipping push."))
 
       ;; Push if flag is passed
       (when-not offline
@@ -192,10 +193,10 @@ def main():
           (gitops/push dir)))
 
       ;; Success.
-      (println log-prefix "Finished building target."))
+      (log/info log-prefix "Finished building target."))
 
     (catch Exception e
-      (println "Error encountered while handling branch " id)
+      (log/info "Error encountered while handling branch " id)
       (gitops/reset dir)
       (throw e))))
 
@@ -203,10 +204,10 @@ def main():
   "Proceeds with the construction of build branches."
   [{:keys [offline dir environments build-all-branches] :as config}]
   (try
-    (println "Branching build strategy selected.")
+    (log/info "Branching build strategy selected.")
     (when-not offline
       (gitops/fetch-all dir)
-      (println "Fetched latest git branches from remote"))
+      (log/info "Fetched latest git branches from remote"))
 
     ;; Pull all branches from config and verify they exist
     (let [current-branch (:initial-branch config)
@@ -215,10 +216,10 @@ def main():
           missing-branches (set/difference required-branches repo-branches)]
 
       ;; Not building from the config in 'development' or 'master' could cause problems
-      (println (str "Configuration file is from branch: " current-branch))
+      (log/info (str "Configuration file is from branch: " current-branch))
       (gitops/switch-branch current-branch dir)
-      (println (str "Branches required: " required-branches))
-      (println (str "Branches in repository: " repo-branches))
+      (log/info (str "Branches required: " required-branches))
+      (log/info (str "Branches in repository: " repo-branches))
 
       ;; Fail if branch name seems wrong
       ;; (when (s/starts-with? current-branch "build")
@@ -232,7 +233,7 @@ def main():
                                       "  git push -u origin <branch-name>"])
                         {:missing-branches missing-branches})))
 
-      (println "All required branches present. Proceeding with branch-based build.")
+      (log/info "All required branches present. Proceeding with branch-based build.")
 
       ;; NOTE: It would probably be smartest only to build from the
       ;; branch that the user is currently present on to ensure that the
@@ -245,7 +246,7 @@ def main():
 
         ;; Show a message when not all branches are being assembled
         (when-not build-all-branches
-          (println (str "Building only branches sourced from '" current-branch "'"
+          (log/info (str "Building only branches sourced from '" current-branch "'"
                         ", switch branches to build others or use --build-all-branches")))
 
         ;; We can destructure the map entry to [key value]
@@ -255,12 +256,12 @@ def main():
 
       ;; Switch home and signal success.
 
-      (println "\nSuccess.")
+      (log/info "\nSuccess.")
       (gitops/switch-branch current-branch dir)
-      (println (str "Completed build from '" current-branch "' branch.")))
+      (log/info (str "Completed build from '" current-branch "' branch.")))
 
     (catch Exception e
-      (println "Error encountered while handling branching builds.")
+      (log/info "Error encountered while handling branching builds.")
       (gitops/switch-branch (:initial-branch config) dir)
       (throw e))))
 
