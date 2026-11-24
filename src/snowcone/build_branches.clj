@@ -102,10 +102,10 @@ def main():
           log-prefix (s/upper-case (str env-target-slug "-BUILD: "))]
 
       (when verbose
-        (log/info (str "\nDEBUG: '" (s/upper-case env-target-slug) "' Target Data:"))
+        (log/debug (str "'" (s/upper-case env-target-slug) "' Target Data:"))
         (prn target-data))
 
-      (log/info (str "\n" (s/upper-case env-target-slug) ": Building target"))
+      (log/info (str "'" (s/upper-case env-target-slug) "': Building target"))
 
       ;; Ensure the latest commits are fetched for the source
       (when-not offline
@@ -231,6 +231,7 @@ def main():
 
       ;; Warn if key build-branches are missing and need to be created.
       (when-not (empty? missing-branches)
+        (log/warn "Missing branches:" missing-branches)
         (throw (ex-info (s/join "\n" ["Git branches missing, create them: "
                                       "  git switch --orphan <branch name>"
                                       "  git commit --allow-empty -m 'creating build branch'"
@@ -260,7 +261,7 @@ def main():
 
       ;; Switch home and signal success.
 
-      (log/info "\nSuccess.")
+      (log/info "Success!")
       (gitops/switch-branch current-branch dir)
       (log/info (str "Completed build from '" current-branch "' branch.")))
 
