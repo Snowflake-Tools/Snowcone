@@ -60,6 +60,13 @@
    (s/split-lines)
    (remove s/blank?)))
 
+(defn list-modified-files [dir]
+  (->>
+   (run-command "git status -s" {:dir dir})
+   :out
+   (s/split-lines)
+   (remove s/blank?)))
+
 (defn restore-file
   "A method of copying a file between branches."
   [file-path source-branch dir offline]

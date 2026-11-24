@@ -67,19 +67,32 @@ def main():
     (gitops/add-file file-path dir)
     (log/info (str "Finished handling " file-path))))
 
+(defn n
+  "Normalize text in strings, symbols, and keywords for comparison."
+  [str-or-key]
+  (s/trim (s/lower-case (name str-or-key))))
+
 (defn copy-and-transform-one-notebook-set
   "Given a folder of notebooks, copy and transform all notebooks to the branch."
-  [{:keys [id notebooks] :as notebook-data}
+  [{:keys [id notebooks version only_in] :as notebook-data}
    {:keys [source_branch target_branch] :as target-data}
    {:keys [dir verbose offline] :as config}]
-  (let [current-branch (gitops/get-current-branch dir)]
+  (let [current-branch (gitops/get-current-branch dir)
+        current-env (n (:id target-data))]
+
+    (when verbose
+      (log/debug "copy-and-tranform-one-notebook-set, id: " id))
+
+    ;; If only-in was not correctly applied, warn
+    (when (and only_in (not (some #(= current-env (n %)) only_in)))
+      (log/error current-env ": Should only build in " only_in ", report this error."))
 
     ;; If not already, switch to the correct target branch.
     (when-not (= current-branch target_branch)
       (gitops/switch-branch target_branch dir)
       (log/info (str "Switched to branch '" target_branch "'")))
 
-    (log/info (str "Handling " (count notebooks) " notebooks for " (name id) " in branch '" target_branch "'"))
+    (log/info (str "(" current-env ") Handling " (count notebooks) " notebooks for " (name id) " in branch '" target_branch "'"))
 
     (when verbose
       (log/info (str (name id) " notebook data:"))
@@ -120,6 +133,7 @@ def main():
       (gitops/reset dir)
       (log/info target_branch " branch reset and ready to copy changes from " source_branch)
 
+      ;; Fetch the latest state from the target branch
       (when-not offline
         (when-not (gitops/upstream-branch-exists dir)
           (throw (ex-info "Upstream branch does not exist." target-data)))
@@ -130,10 +144,8 @@ def main():
       (when-not (empty? (gitops/list-tracked-files target_branch dir))
         (gitops/untrack-all target_branch dir))
 
-      ;; Create .tmp-build-<slug> directory to copy files to
-      ;; -p -> make if already exists
-      ;; (run-command (str "mkdir -p " tmp-dir) {:dir dir})
-      ;; (log/info "Working in directory" tmp-dir)
+      ;; For each notebook-set, act and transform, UNLESS the notebook
+      ;; should only be in another environment.
       (doseq [[id notebook] notebooks]
         (copy-and-transform-one-notebook-set
          (assoc notebook :id id) target-data config))
@@ -204,11 +216,32 @@ def main():
       (gitops/reset dir)
       (throw e))))
 
+(defn prune-config
+  "Removes notebooks from the config if the environment is wrong."
+  [config-data env]
+
+  (log/info "Pruning notebooks to build, if required.")
+  (-> config-data
+      (dissoc :notebooks)
+      (assoc :notebooks
+             ;; Filter if the only-in key exists and doesn't match the environment
+             (filter (fn [[_ nb]] (if (empty? (:only_in nb))
+                                    true
+                                    (some #(= (n env) (n %)) (:only_in nb))))
+                     (:notebooks config-data)))))
+
 (defn build-branches
   "Proceeds with the construction of build branches."
   [{:keys [offline dir environments build-all-branches] :as config}]
   (try
     (log/info "Branching build strategy selected.")
+
+    ;; If changes, ask to commit them first
+    (when (not (empty? (gitops/list-modified-files dir)))
+      (log/warn "Please commit your changes before building.")
+      (throw (ex-info "You have uncommitted changes." {:dir dir})))
+
+    ;; If not offline, fetchall
     (when-not offline
       (gitops/fetch-all dir)
       (log/info "Fetched latest git branches from remote"))
@@ -252,12 +285,13 @@ def main():
         ;; Show a message when not all branches are being assembled
         (when-not build-all-branches
           (log/info (str "Building only branches sourced from '" current-branch "'"
-                        ", switch branches to build others or use --build-all-branches")))
+                         ", switch branches to build others or use --build-all-branches")))
 
         ;; We can destructure the map entry to [key value]
 
         (doseq [[target-id target-data] target-envs]
-          (build-one-branch (assoc target-data :id target-id) config)))
+          (build-one-branch (assoc target-data :id target-id) ;; Provide particular target data
+                            (prune-config config target-id)))) ;; Remove notebooks that should not be built (only_in key)
 
       ;; Switch home and signal success.
 
