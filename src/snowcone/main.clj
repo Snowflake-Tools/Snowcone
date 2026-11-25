@@ -1,6 +1,7 @@
 (ns snowcone.main
   (:require
    [snowcone.preflight-checks :as checks]
+   [snowcone.logo :as logo]
    [snowcone.build-folder :refer [build-folder]]
    [snowcone.build-branches :refer [build-branches]]
    [babashka.cli :as cli]
@@ -115,6 +116,7 @@
 
   ;; LOGGING SETUP
   ;; =============
+  (logo/print-snowcone-logo)
   (timbre/set-min-level! :info) ; initial log level = info
   (timbre/merge-config!
    {:timestamp-opts ; Simplified local timestamps
