@@ -123,6 +123,7 @@ def main():
       ;; Ensure the latest commits are fetched for the source
       (when-not offline
         (gitops/fetch-branch-from-origin source_branch dir)
+        (gitops/pull dir)
         (log/info (str "Fetched source (" source_branch ") branch")))
 
       ;; Switch to the source branch (should not change the branch)

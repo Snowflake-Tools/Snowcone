@@ -43,6 +43,9 @@
 (defn push [dir]
   (run-command "git push" {:dir dir}))
 
+(defn pull [dir]
+  (run-command "git pull" {:dir dir}))
+
 (defn stash-changes [dir]
   (log/debug "Temporarily saving changes.")
   (run-command "git stash -u" {:dir dir}))
