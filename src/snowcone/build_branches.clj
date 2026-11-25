@@ -131,7 +131,7 @@ def main():
 
       ;; Reset the build-branch to ensure no changes have slipped in during editing
       (gitops/reset dir)
-      (log/info target_branch " branch reset and ready to copy changes from " source_branch)
+      (log/info "Reset:" target_branch "branch reset and ready to copy changes from" source_branch)
 
       ;; Fetch the latest state from the target branch
       (when-not offline
@@ -208,8 +208,13 @@ def main():
           ;; Then push if online, branch exists, etc.
           (gitops/push dir)))
 
+      ;; FIX: This helps to remedy when items are removed from branches.
+      (when (:clean-unstaged config)
+        (log/info "CLEAN: Removing unstaged changes from directory.")
+        (gitops/clean dir))
+
       ;; Success.
-      (log/info log-prefix "Finished building target."))
+      (log/info (str log-prefix "Finished building target.")))
 
     (catch Exception e
       (log/error "Error encountered while handling branch " id)
@@ -232,14 +237,17 @@ def main():
 
 (defn build-branches
   "Proceeds with the construction of build branches."
-  [{:keys [offline dir environments build-all-branches] :as config}]
+  [{:keys [offline dir environments build-all-branches stash-changes] :as config}]
   (try
     (log/info "Branching build strategy selected.")
+    (log/debug "Stash changes:" stash-changes)
+    (log/debug "Build all branches:" stash-changes)
 
     ;; If changes, ask to commit them first
-    (when (not (empty? (gitops/list-modified-files dir)))
-      (log/warn "Please commit your changes before building.")
-      (throw (ex-info "You have uncommitted changes." {:dir dir})))
+    (when-not stash-changes
+      (when-not (empty? (gitops/list-modified-files dir))
+        (log/warn "Please commit your changes before building.")
+        (throw (ex-info "You have uncommitted changes." {:dir dir}))))
 
     ;; If not offline, fetchall
     (when-not offline
@@ -277,7 +285,11 @@ def main():
       ;; branch that the user is currently present on to ensure that the
       ;; build files listed in the config are actually present.
 
-      ;; Filter environments by those that match the current base branch
+      ;; Branches are ready - stash changes
+      (when stash-changes
+        (gitops/stash-changes dir))
+
+;; Filter environments by those that match the current base branch
       (let [target-envs (cond->> environments
                           (not build-all-branches)
                           (filter (fn [[_ envr]] (= current-branch (:source_branch envr)))))]
@@ -297,11 +309,15 @@ def main():
 
       (log/info "Success!")
       (gitops/switch-branch current-branch dir)
+      (when stash-changes
+        (gitops/restore-changes-from-stash dir))
       (log/info (str "Completed build from '" current-branch "' branch.")))
 
     (catch Exception e
       (log/error "Error encountered while handling branching builds.")
       (gitops/switch-branch (:initial-branch config) dir)
+      (when stash-changes
+        (gitops/restore-changes-from-stash dir))
       (throw e))))
 
 (comment

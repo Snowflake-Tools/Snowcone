@@ -1,6 +1,4 @@
-(ns snowcone.logo
-  (:require
-   [clojure.string :as s]))
+(ns snowcone.logo)
 
 ;; This has backslashes escaped - test after changing!
 (def snowcone-logo "

@@ -1,12 +1,14 @@
 (ns snowcone.gitops
   (:require
    [clojure.string :as s]
+   [clojure.tools.logging :as log]
    [snowcone.shell :refer [run-command]]))
 
 (defn get-current-branch [dir]
   (s/trim (:out (run-command "git branch --show-current" {:dir dir}))))
 
 (defn switch-branch [branch dir]
+  (log/debug "Switching to branch" branch)
   (run-command (str "git checkout " branch) {:dir dir}))
 
 (defn fetch-all [dir]
@@ -35,8 +37,20 @@
 (defn reset [dir]
   (run-command "git reset --hard" {:dir dir}))
 
+(defn clean [dir]
+  (run-command "git clean -fd" {:dir dir}))
+
 (defn push [dir]
   (run-command "git push" {:dir dir}))
+
+(defn stash-changes [dir]
+  (log/debug "Temporarily saving changes.")
+  (run-command "git stash -u" {:dir dir}))
+
+(defn restore-changes-from-stash [dir]
+  (log/debug "Restoring changes from stash")
+  (log/debug (:out (run-command "git stash pop" {:dir dir :err :string})))
+)
 
 (defn upstream-branch [dir]
   (s/trim (:out (run-command "git rev-parse --abbrev-ref @{u}" {:dir dir}))))

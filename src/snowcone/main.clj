@@ -43,6 +43,16 @@
    {:coerce :boolean
     :desc "Show the loaded config after ingestion"}
 
+   :clean-unstaged
+   {:coerce :boolean
+    :default true
+    :desc "Branch builds: remove unstaged files before switching branches"}
+
+   :stash-changes
+   {:coerce :boolean
+    :default true
+    :desc "Branch builds: remove unstaged files before switching branches"}
+
    :build-all-branches
    {:coerce :boolean
     :desc "Branch-based builds: Rebuild from all base branches"}
