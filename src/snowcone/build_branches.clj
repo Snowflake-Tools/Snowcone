@@ -124,11 +124,16 @@ def main():
       (when-not offline
         (gitops/fetch-branch-from-origin source_branch dir)
         (gitops/pull dir)
-        (log/info (str "Fetched source (" source_branch ") branch")))
+        (log/info (str "Fetched source and pulled (" source_branch ") branch")))
 
-      ;; Switch to the source branch (should not change the branch)
+      ;; SWITCH TO BUILD BRANCH -----------------------
       (gitops/switch-branch target_branch dir)
       (log/info (str "Switched to branch '" target_branch "'"))
+
+      ;; Pull latest for branch when online
+      (when-not offline
+        (gitops/pull dir)
+        (log/info (str "Pulled latest for branch '" target_branch "'")))
 
       ;; Reset the build-branch to ensure no changes have slipped in during editing
       (gitops/reset dir)
